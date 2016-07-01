@@ -7,21 +7,21 @@ describe OAuth2::Strategy::ClientCredentials do
   let(:client) do
     OAuth2::Client.new('abc', 'def', :site => 'http://api.example.com') do |builder|
       builder.adapter :test do |stub|
-        stub.post('/oauth/token', {'grant_type' => 'client_credentials'}) do |env|
-          client_id, client_secret = HTTPAuth::Basic.unpack_authorization(env[:request_headers]['Authorization'])
-          client_id == 'abc' && client_secret == 'def' or raise Faraday::Adapter::Test::Stubs::NotFound.new
+        stub.post('/oauth/token', 'grant_type' => 'client_credentials') do |env|
+          client_id, client_secret = Base64.decode64(env[:request_headers]['Authorization'].split(' ', 2)[1]).split(':', 2)
+          client_id == 'abc' && client_secret == 'def' || raise(Faraday::Adapter::Test::Stubs::NotFound)
           case @mode
-          when "formencoded"
+          when 'formencoded'
             [200, {'Content-Type' => 'application/x-www-form-urlencoded'}, kvform_token]
-          when "json"
+          when 'json'
             [200, {'Content-Type' => 'application/json'}, json_token]
           end
         end
-        stub.post('/oauth/token', {'client_id' => 'abc', 'client_secret' => 'def', 'grant_type' => 'client_credentials'}) do |env|
+        stub.post('/oauth/token', 'client_id' => 'abc', 'client_secret' => 'def', 'grant_type' => 'client_credentials') do |env|
           case @mode
-          when "formencoded"
+          when 'formencoded'
             [200, {'Content-Type' => 'application/x-www-form-urlencoded'}, kvform_token]
-          when "json"
+          when 'json'
             [200, {'Content-Type' => 'application/json'}, json_token]
           end
         end
@@ -29,11 +29,22 @@ describe OAuth2::Strategy::ClientCredentials do
     end
   end
 
-  subject {client.client_credentials}
+  subject { client.client_credentials }
 
-  describe "#authorize_url" do
-    it "should raise NotImplementedError" do
-      lambda {subject.authorize_url}.should raise_error(NotImplementedError)
+  describe '#authorize_url' do
+    it 'raises NotImplementedError' do
+      expect { subject.authorize_url }.to raise_error(NotImplementedError)
+    end
+  end
+
+  describe '#authorization' do
+    it 'generates an Authorization header value for HTTP Basic Authentication' do
+      [
+        ['abc', 'def', 'Basic YWJjOmRlZg=='],
+        ['xxx', 'secret', 'Basic eHh4OnNlY3JldA=='],
+      ].each do |client_id, client_secret, expected|
+        expect(subject.authorization(client_id, client_secret)).to eq(expected)
+      end
     end
   end
 
@@ -46,23 +57,23 @@ describe OAuth2::Strategy::ClientCredentials do
         end
 
         it 'returns AccessToken with same Client' do
-          @access.client.should == client
+          expect(@access.client).to eq(client)
         end
 
         it 'returns AccessToken with #token' do
-          @access.token.should == 'salmon'
+          expect(@access.token).to eq('salmon')
         end
 
         it 'returns AccessToken without #refresh_token' do
-          @access.refresh_token.should be_nil
+          expect(@access.refresh_token).to be_nil
         end
 
         it 'returns AccessToken with #expires_in' do
-          @access.expires_in.should == 600
+          expect(@access.expires_in).to eq(600)
         end
 
         it 'returns AccessToken with #expires_at' do
-          @access.expires_at.should_not be_nil
+          expect(@access.expires_at).not_to be_nil
         end
       end
     end
